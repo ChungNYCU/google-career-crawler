@@ -64,11 +64,11 @@ class ResumeMatcher:
             )
         text = resp.choices[0].message.content.strip()
 
-        # 嘗試 JSON 解析
+        # Attempt JSON parsing
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            # 再嘗試 Python literal 解析（支援單引號、Python dict）
+            # Try Python literal parsing (supports single quotes, Python dict)
             try:
                 result = ast.literal_eval(text)
                 if isinstance(result, dict):
@@ -76,7 +76,7 @@ class ResumeMatcher:
             except Exception:
                 pass
 
-        # 若前面都失敗，嘗試抽取大括號內字串後再解析
+        # If previous attempts fail, extract braces-enclosed snippet and parse
         import re
         m = re.search(r"\{.*\}", text, re.S)
         if m:
@@ -92,15 +92,16 @@ class ResumeMatcher:
         raise ValueError(f"Unable to parse response into dict:\n{text}")
 
 def main():
-    # Validate files
+    # Ensure the resume file exists
     if not RESUME_PATH.exists():
         console.print(f"[red]Error:[/] Resume not found: {RESUME_PATH}", style="bold")
         raise SystemExit(1)
+    # Ensure the jobs.json file exists
     if not JOBS_JSON_PATH.exists():
         console.print(f"[red]Error:[/] jobs.json not found: {JOBS_JSON_PATH}", style="bold")
         raise SystemExit(1)
 
-    # 1. Load jobs.json
+    # 1. Load jobs metadata from JSON
     with open(JOBS_JSON_PATH, "r", encoding="utf-8") as f:
         jobs_meta = json.load(f)
 
@@ -113,19 +114,20 @@ def main():
     table.add_column("Recommend", justify="center")
     table.add_column("Analysis", overflow="fold")
 
-    # 2. Analyze & update
+    # 2. Analyze each job and update metadata
     for idx, job in enumerate(jobs):
+        # Skip if already analyzed
         if job.recommend and job.analysis:
             continue
         res = matcher.analyze(job)
-        # 寫回 JSON 結構
+        # Write back to JSON structure
         jobs_meta[idx]["recommend"] = int(res.get("recommend", 0))
         jobs_meta[idx]["analysis"] = str(res.get("analysis", "")).replace("\n", " ")
-        # 加入表格
+        # Add a row to the table
         table.add_row(job.id, job.title, str(jobs_meta[idx]["recommend"]), jobs_meta[idx]["analysis"])
         table.add_row("---", "---", "-", "---")
 
-    # 3. Save updated file
+    # 3. Save the updated jobs.json file
     with open(JOBS_JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(jobs_meta, f, ensure_ascii=False, indent=2)
 
