@@ -12,7 +12,7 @@ CHROMEDRIVER_PATH = r'C:\Repos\google-career-crawler\chromedriver-win64\chromedr
 TARGET_BASE = 'https://www.google.com/about/careers/applications/jobs/results/'
 FILTER_PREFIX = TARGET_BASE
 LOCATION = 'Taiwan'
-TARGET_LEVEL = 'EARLY'
+TARGET_LEVEL = 'EARLY' # INTERN_AND_APPRENTICE, EARLY, MID, ADVANCED, DIRECTOR_PLUS
 QUERY_PARAMS = f'?q=%22Software%20Engineer%22&location={LOCATION}&target_level={TARGET_LEVEL}'
 JOBS_JSON = 'jobs.json'
 
@@ -25,6 +25,11 @@ old_ids = {job['id'] for job in old_jobs}
 
 # Initialize Selenium
 options = Options()
+
+options.add_argument("--disable-logging")
+options.add_argument("--log-level=3")                   # 0 = INFO, 1 = WARNING, 2 = LOG_ERROR, 3 = LOG_FATAL
+options.add_experimental_option("excludeSwitches", ["enable-logging"])
+
 options.add_argument("--start-maximized")
 driver = webdriver.Chrome(service=Service(CHROMEDRIVER_PATH), options=options)
 
