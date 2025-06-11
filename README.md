@@ -1,131 +1,118 @@
-# google-career-crawler
+# Google Career Resume Matcher
 
-# Google Career Tracker 🤖
+A Python-based CLI toolchain that automatically crawls Google Career job listings, analyzes how well each job matches your resume using OpenAI's API, and sorts the results by recommendation score.
 
-Automatically track new or removed Software Engineer positions at Google Careers during team-match.
+## Prerequisites
 
-## 🔍 Overview
+* Python 3.8 or higher
+* Google Chrome browser
+* ChromeDriver installed and accessible
+* An OpenAI API key
+* Windows users: \[Optional] `setup.bat` for one-step setup
 
-**What it does:**  
-This tool scrapes Google Careers pages for "Software Engineer" roles in Taiwan (or any configured query), automatically paging through results, and tracks which jobs are newly posted or removed since the last check.
+## Installation
 
-**Why it exists:**  
-During Google’s internal team-match process, it’s easy to miss new openings or changes. This tracker alerts candidates to position updates so they never miss an opportunity.
-
----
-
-## ⚙️ Features
-
-- **Automatic pagination**: Crawls all available pages until no more listings.
-- **Link parsing**: Extracts every job link and parses into:
-  - `id` – the job’s numeric identifier  
-  - `title` – the slugified job name  
-  - `link` – full job URL
-- **Change detection**: Compares current results to the previous `jobs.json`:
-  - **New roles** – jobs not present in the previous run  
-  - **Removed roles** – jobs present before but no longer available
-- **Persistent storage**: Updates and overwrites `jobs.json` after each run.
-
----
-
-## 🛠️ Installation
-
-1. **Clone the repo**  
-   ```bash
-   git clone https://github.com/your-username/google-career-tracker.git
-   cd google-career-tracker
-   ```
-
-2. **Install dependencies**
+1. Clone the repository:
 
    ```bash
-   pip install selenium
+   git clone https://github.com/ChungNYCU/google-career-crawler.git
+   cd google-career-crawler
+   ```
+2. (Optional on Windows) Run the setup script to install dependencies:
+
+   ```bat
+   setup.bat
    ```
 
-3. **Download ChromeDriver**
+   Or install manually:
 
-   * Ensure it matches your Chrome version
-   * Place it in the project folder, e.g.:
-     `./chromedriver-win64/chromedriver.exe`
-   * Or update `CHROMEDRIVER_PATH` in `script.py`
-   * Go https://googlechromelabs.github.io/chrome-for-testing/#stable to download chromedriver
+   ```bash
+   python -m venv venv
+   source venv/bin/activate    # On Windows: venv\\Scripts\\activate
+   pip install -r requirements.txt
+   ```
+3. Create a `.env` file at the project root:
 
----
+   ```env
+   OPENAI_API_KEY=your_openai_api_key_here
+   ```
+4. Go https://googlechromelabs.github.io/chrome-for-testing/#stable to download chromedriver
+5. Place your PDF resume in the project folder and update `RESUME_PATH` in `job_matcher.py` if needed.
 
-## 🚀 Usage
+## Usage
 
-Run the script:
+Follow these three steps in order:
+
+### 1. Crawl and update job listings
+
+Run `GoogleCareer.py` to fetch the latest Google Career job postings, parse job details, and save them to `jobs.json`.
 
 ```bash
-python get_jobs.py
+python GoogleCareer.py --chromedriver-path /path/to/chromedriver \
+   --query "Software Engineer" --location "Taiwan" --level EARLY
 ```
 
-* **First run**: creates `jobs.json` with current job listings.
-* **Subsequent runs**:
+This script will:
 
-  * Prints new and removed job IDs
-  * Updates `jobs.json`
+* Crawl all pages of Google Career for the given query, location, and level
+* Compare with existing `jobs.json` to detect added or removed positions
+* Fetch and parse job details for new listings
+* Save the combined list back to `jobs.json`
 
-### Sample Output
+### 2. Analyze resume-to-job matches
 
-```
-[Page 1] Crawling: …&page=1
-[Page 2] Crawling: …&page=2
-⚠️ No more jobs – stopping.
+Run `job_matcher.py` to evaluate each job against your resume using the OpenAI model. It will enrich `jobs.json` with two new fields: `recommend` (0–10) and `analysis` (text explanation).
 
-✅ New jobs: 2
- + 907456711… — software-engineer-ii-bluetooth
- + 906123450… — software-engineer-gpu-google-cloud-platforms
-
-✅ Removed jobs: 1
- - 905987654… — software-engineer-android-pixel
-
-🎯 jobs.json updated.
+```bash
+python job_matcher.py
 ```
 
----
+This script will:
 
-## 📁 Project Structure
+* Read your PDF resume and existing `jobs.json`
+* Call the OpenAI API for each job to compute a match score and rationale
+* Update `jobs.json` with `recommend` and `analysis` fields
+* Display a summary table in the console
+
+### 3. Sort jobs by recommendation
+
+Run `job_sort.py` to generate a sorted JSON and table view of jobs by descending recommendation score.
+
+```bash
+python job_sort.py
+```
+
+This script will:
+
+* Read the updated `jobs.json`
+* Sort the job entries by the `recommend` field (highest to lowest)
+* Write the sorted list to `jobs_sorted.json`
+* Print a table of Job ID, Recommend, and Title
+
+## Project Structure
 
 ```
-.
-├─ script.py         # Main scraper + diff logic
-├─ jobs.json         # Persisted job listings
-└─ chromedriver…     # ChromeDriver executable
+├── GoogleCareer.py    # Crawls and updates jobs.json
+├── job_detail.py      # Data class for job metadata and details
+├── job_matcher.py     # Analyzes resume vs. jobs with OpenAI
+├── job_sort.py        # Sorts and outputs jobs_sorted.json
+├── requirements.txt   # Python dependencies
+├── setup.bat          # Windows helper to install dependencies
+├── .env               # Environment variables (OpenAI API key)
+├── jobs.json          # Fetched and analyzed job data
+└── jobs_sorted.json   # Sorted output by recommendation
 ```
 
----
+## Customization
 
-## 🔧 Customization
+* **Query parameters**: Change `--query`, `--location`, and `--level` when running `GoogleCareer.py`.
+* **Model**: Edit `MODEL_NAME` in `job_matcher.py` to use a different OpenAI model.
+* **Resume path**: Update `RESUME_PATH` constant in `job_matcher.py` if your resume filename or location changes.
 
-* **Change filter/query**: Adjust `QUERY_PARAMS` in `script.py` for other roles or regions.
-* **Save format**: Add CSV or database output options.
-* **Enhance tracking**: Add email/Slack notifications on changes.
-* **Detail scraping**: Extend to fetch job descriptions or qualifications.
+## Contributing
 
----
+Contributions and issues are welcome! Please open a pull request or issue for improvements, bug fixes, or feature requests.
 
-## 🧭 Roadmap
+## License
 
-* [ ] Schedule daily runs (cron or GitHub Actions)
-* [ ] Add notification support (e.g., Slack/email)
-* [ ] Scrape job detail pages for full metadata
-* [ ] Export to CSV, DB (SQLite/Postgres)
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repo
-2. Create a feature branch (`git checkout -b feature-name`)
-3. Commit and push changes
-4. Open a pull request
-
----
-
-## 📄 License
-
-MIT License — see `LICENSE` file for details.
-
+MIT License. See `LICENSE` for details.
