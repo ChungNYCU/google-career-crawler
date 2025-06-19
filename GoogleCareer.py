@@ -2,6 +2,7 @@ import json
 import os
 import time
 import logging
+from dotenv import load_dotenv
 from urllib.parse import urlparse
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -11,6 +12,8 @@ from typing import List, Tuple
 
 from job_detail import JobDetail
 
+load_dotenv()
+CHROMEDRIVER_PATH = os.getenv("CHROMEDRIVER_PATH")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 def default_options():
@@ -189,6 +192,6 @@ class GoogleCareer:
 if __name__ == '__main__':
     crawler = GoogleCareer(
         query='software engineer',
-        chromedriver_path=r'C:\Repos\google-career-crawler\chromedriver-win64\chromedriver.exe'
+        chromedriver_path=CHROMEDRIVER_PATH
     )
     out: List[JobDetail] = crawler.run()

@@ -11,6 +11,8 @@ from datetime import datetime
 load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
+PYTHON_PATH = os.getenv("PYTHON_PATH")
+
 
 # === Execution interval settings (in seconds) ===
 MIN_INTERVAL_SEC = 420   # Minimum interval: 7 minutes
@@ -34,7 +36,7 @@ async def check_and_notify():
 
         try:
             result = subprocess.run(
-                ["C:/Repos/google-career-crawler/venv/Scripts/python.exe", "GoogleCareer.py"],
+                [PYTHON_PATH, "GoogleCareer.py"],
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
