@@ -4,6 +4,8 @@ import os
 import re
 import random
 import sys
+import csv
+import json
 from dotenv import load_dotenv
 from datetime import datetime
 
@@ -11,18 +13,27 @@ from datetime import datetime
 #  Environment variables
 # =========================
 load_dotenv()
-DISCORD_BOT_TOKEN       = os.getenv("DISCORD_BOT_TOKEN")
-PYTHON_PATH             = os.getenv("PYTHON_PATH", sys.executable or "python")
+DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+PYTHON_PATH = os.getenv("PYTHON_PATH", sys.executable or "python")
+DATA_FOLDER_PATH = os.getenv("DATA_FOLDER_PATH")
 
 # Optional timeout (in seconds). If empty => no timeout
 CRAWLER_TIMEOUT_ENV = os.getenv("CRAWLER_TIMEOUT_SEC", "").strip()
-CRAWLER_TIMEOUT_SEC: float | None = float(CRAWLER_TIMEOUT_ENV) if CRAWLER_TIMEOUT_ENV else None
+CRAWLER_TIMEOUT_SEC: float | None = float(
+    CRAWLER_TIMEOUT_ENV) if CRAWLER_TIMEOUT_ENV else None
 
 # Channel IDs and script paths
-DISCORD_L3_CHANNEL_ID   = int(os.getenv("DISCORD_L3_CHANNEL_ID"))
-DISCORD_L4_CHANNEL_ID   = int(os.getenv("DISCORD_L4_CHANNEL_ID"))
-GC_SCRIPT_L3            = os.getenv("GC_SCRIPT_L3")
-GC_SCRIPT_L4            = os.getenv("GC_SCRIPT_L4")
+DISCORD_L3_CHANNEL_ID = int(os.getenv("DISCORD_L3_CHANNEL_ID"))
+DISCORD_L4_CHANNEL_ID = int(os.getenv("DISCORD_L4_CHANNEL_ID"))
+DISCORD_US_CHANNEL_ID = int(os.getenv("DISCORD_US_CHANNEL_ID"))
+GC_SCRIPT_L3 = os.getenv("GC_SCRIPT_L3")
+GC_SCRIPT_L4 = os.getenv("GC_SCRIPT_L4")
+GC_SCRIPT_US = os.getenv("GC_SCRIPT_US")
+TAGS = {
+    GC_SCRIPT_L3: 'L3',
+    GC_SCRIPT_L4: 'L4',
+    GC_SCRIPT_US: 'US'
+}
 
 # Execution interval settings (seconds)
 MIN_INTERVAL_SEC = 14000
@@ -30,6 +41,9 @@ MAX_INTERVAL_SEC = 15000
 
 # Discord single message character limit
 DISCORD_CHAR_LIMIT = 2000
+
+# Job history tracking
+JOB_HISTORY_FILE = os.getenv("JOB_HISTORY_FILE", f"{DATA_FOLDER_PATH}job_history.csv")
 
 # =========================
 #  Discord client setup
@@ -120,15 +134,16 @@ def parse_crawler_output(output: str) -> tuple[int, int, str | None, str | None]
             - removed_block (str | None): Formatted string of removed jobs, or None if none.
     """
     text = (output or "").strip()
-    new_match     = re.search(r"New:\s*(\d+)", text)
+    new_match = re.search(r"New:\s*(\d+)", text)
     removed_match = re.search(r"Removed:\s*(\d+)", text)
-    new_count     = int(new_match.group(1)) if new_match else 0
+    new_count = int(new_match.group(1)) if new_match else 0
     removed_count = int(removed_match.group(1)) if removed_match else 0
 
     new_block = None
     new_section = re.search(r"New:\s*\d+\s*(.*?)Removed:", text, re.DOTALL)
     if new_section or new_count > 0:
-        block_match = new_section or re.search(r"New:\s*\d+\s*(.*)", text, re.DOTALL)
+        block_match = new_section or re.search(
+            r"New:\s*\d+\s*(.*)", text, re.DOTALL)
         if block_match:
             lines = block_match.group(1).strip().splitlines()
             entries = []
@@ -159,6 +174,60 @@ def parse_crawler_output(output: str) -> tuple[int, int, str | None, str | None]
     return new_count, removed_count, new_block, removed_block
 
 
+def get_total_jobs(tag: str) -> int:
+    """
+    Get the current total number of jobs for a given tag by reading the JSON file.
+
+    Args:
+        tag (str): Job tag ('L3' or 'L4' of 'US').
+
+    Returns:
+        int: Total number of jobs, or -1 if error.
+    """
+    json_file = f"{DATA_FOLDER_PATH}{tag.lower()}_jobs.json"
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            data = json.loads(f.read())
+
+        if isinstance(data, list):
+            return len(data)
+        elif isinstance(data, dict):
+            return 1
+        else:
+            return 0
+    except (FileNotFoundError, json.JSONDecodeError, Exception):
+        return -1
+
+
+def log_job_stats(level: str, total_jobs: int, new_jobs: int, removed_jobs: int):
+    """
+    Log job statistics to CSV file for historical tracking.
+
+    Args:
+        level (str): Job level (e.g., 'L3', 'L4').
+        total_jobs (int): Current total job count.
+        new_jobs (int): Number of new jobs.
+        removed_jobs (int): Number of removed jobs.
+    """
+    now = datetime.now()
+    date_str = now.strftime('%Y-%m-%d')
+    time_str = now.strftime('%H:%M:%S')
+
+    # Create CSV with headers if it doesn't exist
+    file_exists = os.path.exists(JOB_HISTORY_FILE)
+
+    try:
+        with open(JOB_HISTORY_FILE, 'a', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            if not file_exists:
+                writer.writerow(
+                    ['date', 'time', 'level', 'total_jobs', 'new_jobs', 'removed_jobs'])
+            writer.writerow([date_str, time_str, level,
+                            total_jobs, new_jobs, removed_jobs])
+    except Exception as e:
+        print(f"⚠️ Failed to log job stats: {e!r}", flush=True)
+
+
 async def send_changes_if_any(channel: discord.abc.Messageable, script_path: str, output: str):
     """
     Send job changes to a Discord channel if there are any.
@@ -168,12 +237,24 @@ async def send_changes_if_any(channel: discord.abc.Messageable, script_path: str
         script_path (str): The crawler script path (used for message header).
         output (str): Raw crawler output.
     """
-    new_count, removed_count, new_block, removed_block = parse_crawler_output(output)
+    new_count, removed_count, new_block, removed_block = parse_crawler_output(
+        output)
+
+
+    # Determine job tag from script path
+    tag = TAGS[script_path]
+
+    # Get actual total jobs from JSON file
+    total_jobs = get_total_jobs(tag)
+
+    # Log stats regardless of whether there are changes (for tracking purposes)
+    log_job_stats(tag, total_jobs, new_count, removed_count)
 
     if new_count == 0 and removed_count == 0:
         return
 
-    msg_lines = [f"📢 {os.path.basename(script_path)} Update:\nNew: {new_count}\nRemoved: {removed_count}"]
+    msg_lines = [
+        f"📢 {os.path.basename(script_path)} Update:\nNew: {new_count}\nRemoved: {removed_count}"]
     if new_block:
         msg_lines.append(new_block)
     if removed_block:
@@ -202,7 +283,8 @@ async def crawl_loop(channel_id: int, script_path: str):
         try:
             channel = await client.fetch_channel(channel_id)
         except Exception as e:
-            print(f"❌ Cannot access channel ID {channel_id}: {e!r}", flush=True)
+            print(
+                f"❌ Cannot access channel ID {channel_id}: {e!r}", flush=True)
             return
 
     if not script_path or not os.path.exists(script_path):
@@ -211,27 +293,32 @@ async def crawl_loop(channel_id: int, script_path: str):
 
     while True:
         start = datetime.now()
-        print(f"⏳ [{start.strftime('%H:%M:%S')}] Running {script_path}...", flush=True)
+        print(
+            f"⏳ [{start.strftime('%H:%M:%S')}] Running {script_path}...", flush=True)
 
         try:
             rc, output, error = await run_cmd([PYTHON_PATH, script_path], timeout=CRAWLER_TIMEOUT_SEC)
         except asyncio.TimeoutError:
-            print(f"⚠️ {script_path} timed out (> {CRAWLER_TIMEOUT_SEC}s).", flush=True)
+            print(
+                f"⚠️ {script_path} timed out (> {CRAWLER_TIMEOUT_SEC}s).", flush=True)
         except Exception as e:
             print(f"💥 Failed to run {script_path}: {e!r}", flush=True)
         else:
             end = datetime.now()
             duration = (end - start).total_seconds()
-            print(f"✅ [{end.strftime('%H:%M:%S')}] {script_path} finished in {duration:.1f}s (rc={rc})", flush=True)
+            print(
+                f"✅ [{end.strftime('%H:%M:%S')}] {script_path} finished in {duration:.1f}s (rc={rc})", flush=True)
             if error:
                 print(f"[ERR] {script_path} stderr:\n{error}", flush=True)
             if rc != 0:
-                print(f"⚠️ {script_path} exited with non-zero code: {rc}", flush=True)
+                print(
+                    f"⚠️ {script_path} exited with non-zero code: {rc}", flush=True)
 
             try:
                 await send_changes_if_any(channel, script_path, output)
             except Exception as e:
-                print(f"⚠️ Failed to send changes to Discord: {e!r}", flush=True)
+                print(
+                    f"⚠️ Failed to send changes to Discord: {e!r}", flush=True)
 
         # Wait a random interval before the next run
         wait = random.randint(MIN_INTERVAL_SEC, MAX_INTERVAL_SEC)
@@ -262,6 +349,7 @@ async def on_ready():
 
     asyncio.create_task(crawl_loop(DISCORD_L3_CHANNEL_ID, GC_SCRIPT_L3))
     asyncio.create_task(crawl_loop(DISCORD_L4_CHANNEL_ID, GC_SCRIPT_L4))
+    asyncio.create_task(crawl_loop(DISCORD_US_CHANNEL_ID, GC_SCRIPT_US))
 
 
 # =========================
