@@ -44,12 +44,21 @@ class NvidiaJobDetail:
         if not job_id:
             job_id = job_data.get('externalPath', '').split('_')[-1]
         
+        title = job_data.get('title', '')
+        external_path = job_data.get('externalPath', '')
+        locations_text = job_data.get('locationsText', '')
+        posted_on = job_data.get('postedOn', '')
+        
+        # Skip jobs with empty attributes (deleted jobs)
+        if not title or not external_path or not locations_text or not posted_on:
+            return None
+        
         return cls(
             job_id=job_id,
-            title=job_data.get('title', ''),
-            external_path=job_data.get('externalPath', ''),
-            locations_text=job_data.get('locationsText', ''),
-            posted_on=job_data.get('postedOn', '')
+            title=title,
+            external_path=external_path,
+            locations_text=locations_text,
+            posted_on=posted_on
         )
 
 
@@ -83,6 +92,9 @@ class NvidiaCareer:
             jobs = []
             for item in data:
                 try:
+                    # Skip jobs with empty attributes (deleted jobs)
+                    if not item.get('title') or not item.get('external_path') or not item.get('locations_text') or not item.get('posted_on'):
+                        continue
                     jobs.append(NvidiaJobDetail.from_dict(item))
                 except Exception as e:
                     logging.warning(f"Skipped invalid job entry: {e}")
@@ -165,7 +177,8 @@ class NvidiaCareer:
                 for job_data in job_postings:
                     try:
                         job = NvidiaJobDetail.from_api_response(job_data)
-                        all_jobs.append(job)
+                        if job:  # Only add valid jobs (skip deleted ones)
+                            all_jobs.append(job)
                     except Exception as e:
                         logging.warning(f"Failed to parse job: {e}")
                 
