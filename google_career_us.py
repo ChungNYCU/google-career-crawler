@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 if __name__ == '__main__':
     crawler = GoogleCareer(
         query='software engineer',
-        jobs_json=f'{DATA_FOLDER_PATH}us_jobs.json',
+        jobs_json=f'{DATA_FOLDER_PATH}google_career_us_jobs.json',
         location='United States',
         level=''
     )

@@ -26,18 +26,21 @@ CRAWLER_TIMEOUT_SEC: float | None = float(
 DISCORD_L3_CHANNEL_ID = int(os.getenv("DISCORD_L3_CHANNEL_ID"))
 DISCORD_L4_CHANNEL_ID = int(os.getenv("DISCORD_L4_CHANNEL_ID"))
 DISCORD_US_CHANNEL_ID = int(os.getenv("DISCORD_US_CHANNEL_ID"))
+DISCORD_NV_CHANNEL_ID = int(os.getenv("DISCORD_NV_CHANNEL_ID", "0"))
 GC_SCRIPT_L3 = os.getenv("GC_SCRIPT_L3")
 GC_SCRIPT_L4 = os.getenv("GC_SCRIPT_L4")
 GC_SCRIPT_US = os.getenv("GC_SCRIPT_US")
+NV_SCRIPT_TW = os.getenv("NV_SCRIPT_TW")
 TAGS = {
     GC_SCRIPT_L3: 'L3',
     GC_SCRIPT_L4: 'L4',
-    GC_SCRIPT_US: 'US'
+    GC_SCRIPT_US: 'US',
+    NV_SCRIPT_TW: 'NV_TW'
 }
 
 # Execution interval settings (seconds)
-MIN_INTERVAL_SEC = 14000
-MAX_INTERVAL_SEC = 15000
+MIN_INTERVAL_SEC = 60 * 60
+MAX_INTERVAL_SEC = 90 * 60
 
 # Discord single message character limit
 DISCORD_CHAR_LIMIT = 2000
@@ -174,17 +177,20 @@ def parse_crawler_output(output: str) -> tuple[int, int, str | None, str | None]
     return new_count, removed_count, new_block, removed_block
 
 
-def get_total_jobs(tag: str) -> int:
+def get_total_jobs_by_script(script_path: str) -> int:
     """
-    Get the current total number of jobs for a given tag by reading the JSON file.
+    Get the current total number of jobs for a given script by reading the JSON file.
 
     Args:
-        tag (str): Job tag ('L3' or 'L4' of 'US').
+        script_path (str): Path to the script file.
 
     Returns:
         int: Total number of jobs, or -1 if error.
     """
-    json_file = f"{DATA_FOLDER_PATH}{tag.lower()}_jobs.json"
+    # Extract script name without extension
+    script_name = os.path.splitext(os.path.basename(script_path))[0]
+    json_file = f"{DATA_FOLDER_PATH}{script_name}_jobs.json"
+    
     try:
         with open(json_file, 'r', encoding='utf-8') as f:
             data = json.loads(f.read())
@@ -197,6 +203,7 @@ def get_total_jobs(tag: str) -> int:
             return 0
     except (FileNotFoundError, json.JSONDecodeError, Exception):
         return -1
+
 
 
 def log_job_stats(level: str, total_jobs: int, new_jobs: int, removed_jobs: int):
@@ -241,11 +248,11 @@ async def send_changes_if_any(channel: discord.abc.Messageable, script_path: str
         output)
 
 
-    # Determine job tag from script path
-    tag = TAGS[script_path]
+    # Get actual total jobs from JSON file using script path
+    total_jobs = get_total_jobs_by_script(script_path)
 
-    # Get actual total jobs from JSON file
-    total_jobs = get_total_jobs(tag)
+    # Determine job tag from script path
+    tag = TAGS.get(script_path, os.path.splitext(os.path.basename(script_path))[0])
 
     # Log stats regardless of whether there are changes (for tracking purposes)
     log_job_stats(tag, total_jobs, new_count, removed_count)
@@ -350,6 +357,8 @@ async def on_ready():
     asyncio.create_task(crawl_loop(DISCORD_L3_CHANNEL_ID, GC_SCRIPT_L3))
     asyncio.create_task(crawl_loop(DISCORD_L4_CHANNEL_ID, GC_SCRIPT_L4))
     asyncio.create_task(crawl_loop(DISCORD_US_CHANNEL_ID, GC_SCRIPT_US))
+    
+    asyncio.create_task(crawl_loop(DISCORD_NV_CHANNEL_ID, NV_SCRIPT_TW))
 
 
 # =========================

@@ -14,6 +14,6 @@ if __name__ == '__main__':
     crawler = GoogleCareer(
         level='MID',
         query='software engineer',
-        jobs_json=f'{DATA_FOLDER_PATH}l4_jobs.json'
+        jobs_json=f'{DATA_FOLDER_PATH}google_career_l4_jobs.json'
     )
     out: List[JobDetail] = crawler.run()
