@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 from openai import OpenAI
 
-from job_detail import JobDetail
+from google_career import JobDetail
 
 # Load .env file if present
 load_dotenv()
@@ -20,7 +20,7 @@ console = Console()
 # Configuration variables
 RESUME_PATH = Path("Jun_2025_jesse_chung_resume.pdf")
 JOBS_JSON_PATH = Path("jobs.json")
-MODEL_NAME = "gpt-4.1-mini"
+MODEL_NAME = "gpt-5-mini"
 
 # Initialize OpenAI client
 api_key = os.getenv("OPENAI_API_KEY")
