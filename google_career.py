@@ -30,7 +30,7 @@ def default_options():
 class GoogleCareer:
     def __init__(
         self,
-        chromedriver_path: str,
+        chromedriver_path: str = CHROMEDRIVER_PATH,
         location: str = "Taiwan",
         level: str = "EARLY",
         query: str = "Software Engineer",

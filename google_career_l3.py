@@ -7,14 +7,12 @@ from google_career import GoogleCareer
 from job_detail import JobDetail
 
 load_dotenv()
-CHROMEDRIVER_PATH = os.getenv("CHROMEDRIVER_PATH")
 DATA_FOLDER_PATH = os.getenv("DATA_FOLDER_PATH")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 if __name__ == '__main__':
     crawler = GoogleCareer(
         query='software engineer',
-        jobs_json=f'{DATA_FOLDER_PATH}l3_jobs.json',
-        chromedriver_path=CHROMEDRIVER_PATH
+        jobs_json=f'{DATA_FOLDER_PATH}l3_jobs.json'
     )
     out: List[JobDetail] = crawler.run()
